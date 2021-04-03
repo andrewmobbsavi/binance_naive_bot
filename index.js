@@ -65,6 +65,7 @@ const tick = async(config) => {
       }
       fs.appendFileSync('errors.txt', dateShow + "  Error!");
     })
+  ]);
 
 
 
@@ -170,7 +171,7 @@ const run = () => {
     compare: 'usd',
     buyPercentage: 0.01, //%fall to buy
     sellPercentage: 0.005, //% rise to buy
-    tickInterval: 60000
+    tickInterval: 50000
   };
 
 
