@@ -6,16 +6,16 @@ const axios = require('axios');
 const fs = require('fs');
 
 //TESTING
-var results = [];
-results[0] = {data:{bitcoin:{usd:60000}}}
-let increaser = false;
-var intervalCount = 0;
+// var results = [];
+// results[0] = {data:{bitcoin:{usd:60000}}}
+// let increaser = false;
+// var intervalCount = 0;
 //END TESTING
 
 //Amount of money
 var stack = 1000;
 
-teteer
+
 
 //tracks the price we are currently on
 var priceTracker = null;
@@ -26,19 +26,19 @@ var buyTracker = null; //track currently held values
 const tick = async(config) => {
 
 //TESTING
-  if(results[0].data.bitcoin.usd >= 62000){
-    results[0].data.bitcoin.usd -= 100;
-    increaser = false;
-  } else if(results[0].data.bitcoin.usd <= 58000){
-    results[0].data.bitcoin.usd += 100;
-    increaser = true;
-  } else {
-    if(increaser){
-      results[0].data.bitcoin.usd += 100;
-    } else {
-      results[0].data.bitcoin.usd -= 100;
-    }
-  }
+  // if(results[0].data.bitcoin.usd >= 62000){
+  //   results[0].data.bitcoin.usd -= 100;
+  //   increaser = false;
+  // } else if(results[0].data.bitcoin.usd <= 58000){
+  //   results[0].data.bitcoin.usd += 100;
+  //   increaser = true;
+  // } else {
+  //   if(increaser){
+  //     results[0].data.bitcoin.usd += 100;
+  //   } else {
+  //     results[0].data.bitcoin.usd -= 100;
+  //   }
+  // }
 
   //END TESTING
 
@@ -49,23 +49,23 @@ const tick = async(config) => {
   const { asset, compare, buyPercentage, sellPercentage } = config;
 
 
-  // const results = await Promise.all([
-  //   axios.get('https://api.coingecko.com/api/v3/simple/price?ids='+asset+'&vs_currencies='+compare).catch(function (error) {
-  //     if (error.response) {
-  //       // Request made and server responded
-  //       console.log(error.response.data);
-  //       console.log(error.response.status);
-  //       console.log(error.response.headers);
-  //     } else if (error.request) {
-  //       // The request was made but no response was received
-  //       console.log(error.request);
-  //     } else {
-  //       // Something happened in setting up the request that triggered an Error
-  //       console.log('Error', error.message);
-  //     }
-  //     fs.appendFileSync('errors.txt', dateShow + "  Error!");
-  //   })
-  //
+  const results = await Promise.all([
+    axios.get('https://api.coingecko.com/api/v3/simple/price?ids='+asset+'&vs_currencies='+compare).catch(function (error) {
+      if (error.response) {
+        // Request made and server responded
+        console.log(error.response.data);
+        console.log(error.response.status);
+        console.log(error.response.headers);
+      } else if (error.request) {
+        // The request was made but no response was received
+        console.log(error.request);
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.log('Error', error.message);
+      }
+      fs.appendFileSync('errors.txt', dateShow + "  Error!");
+    })
+
 
 
   //results
@@ -170,7 +170,7 @@ const run = () => {
     compare: 'usd',
     buyPercentage: 0.01, //%fall to buy
     sellPercentage: 0.005, //% rise to buy
-    tickInterval: 1
+    tickInterval: 60000
   };
 
 
