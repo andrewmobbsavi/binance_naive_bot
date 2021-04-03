@@ -15,7 +15,7 @@ var intervalCount = 0;
 //Amount of money
 var stack = 1000;
 
-
+teteer
 
 //tracks the price we are currently on
 var priceTracker = null;
