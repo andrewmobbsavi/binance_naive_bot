@@ -1,5 +1,5 @@
 # binance_naive_bot
-A Naive Trading bot which buys low and sells high using Tether. Bullish Only. Current incarnation will get stuck with the bags at all time highs. 
+A Naive Trading bot via Binance API which buys low and sells high using Tether. Bullish Only. Current incarnation will get stuck with the bags at all time highs. 
 Good for bullish trading or consolidation trading. Needs refactoring and tweaking. 
 
 Setup instructions:
@@ -13,7 +13,7 @@ The node command uses argv parameters.
 node index.js environment CURRENCY
 -----------------------------------
 examples:
-node index.js local ETH
+node index.js local ETH<br>
 node index.js live BNB
 
 Currently only BNB and ETH are supported. Other currencies can be easily added. 
