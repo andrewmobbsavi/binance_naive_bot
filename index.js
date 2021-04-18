@@ -297,10 +297,10 @@ async function placeOrder(theTicker, marketPrice, rawTicker, side, orderbookPric
   let buyAmount = calculateTradeAmount(side, amountsHeld[rawTicker], amountsHeld[process.env.USDT_SYMBOL], tradePrice);
 
 // console.log(buyAmount);
-  if(side == process.env.BUY){
-    buyAmount = buyAmount / 50; //testing
-    buyAmount = buyAmount.toFixed(initService.precision);
-  }
+  // if(side == process.env.BUY){
+  //   buyAmount = buyAmount / 50; //testing
+  //   buyAmount = buyAmount.toFixed(initService.precision);
+  // }
 
 // console.log(tradePrice);
   datasetc = "symbol=" + theTicker + "&side=" + side + "&type=LIMIT&quantity=" + buyAmount + "&timeInForce=" + timeInForce +"&price=" + tradePrice + "&newClientOrderId=my_order_id_1&timestamp=" + timestamp;
