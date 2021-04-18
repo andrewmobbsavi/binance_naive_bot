@@ -1,42 +1,20 @@
 require('dotenv').config();
 
 /*
-
   BUY AND SELL VERIFICATIONS. IF NO VERIFICATION, THEN FAIL.
   ALSO, VERIFICATION OF PRICE
-
 */
 
-const {
-  createHmac,
-} = require('crypto');
-
-
+const { createHmac,} = require('crypto');
 const axios = require('axios');
-
+const axiosService = require('./services/axios_service');
+axiosService.setAxios(axios);
 //store data
 const fs = require('fs');
 
-//QuoteOrderQty
+const marketService = require('./services/market_service');
 
-//Arguments as env, ticker
-
-const argsGet = process.argv;
-
-const appEnv = argsGet[2];
-const currency = argsGet[3];
-
-//Local settings
-var apiKey = process.env.TEST_BINANCE_API_KEY;
-var apiSecret = process.env.TEST_BINANCE_SECRET_KEY;
-var apiRoot = process.env.TEST_BINANCE_API_ROOT;
-
-if(appEnv == process.env.LIVE_ENVIRONMENT){
-  apiKey = process.env.BINANCE_API_KEY;
-  apiSecret = process.env.BINANCE_SECRET_KEY;
-  apiRoot = process.env.LIVE_BINANCE_API_ROOT;
-}
-
+const initService = require('./services/init_service');
 
 
 /*
@@ -50,76 +28,46 @@ if(appEnv == process.env.LIVE_ENVIRONMENT){
 //****************************************************************************************//
 
 //globals for generating signatures in api calls
-var timestamp = Number(new Date());
 
 const buildSign = (data, secret) => {
   return createHmac('sha256', secret).update(data).digest('hex');
 };
 
 
-//TESTING
-// var results = [];
-// results[0] = {data:{bitcoin:{usd:60000}}}
-// let increaser = false;
-// var intervalCount = 0;
-//END TESTING
-
 //Amount of money
 var stack = 1000;
-
 
 
 //tracks the price we are currently on
 var priceTracker = null;
 var holding = false;
 var buyTracker = null; //track currently held values
-
-
-var compare_ticker = process.env.BNB_USDT;
-var main_ticker = process.env.BNB_SYMBOL;
-
-if(currency == process.env.BTC_SYMBOL){
-  compare_ticker = process.env.BTC_USDT;
-  main_ticker = process.env.BTC_SYMBOL;
-} else if(currency == process.env.ETH_SYMBOL){
-  compare_ticker = process.env.ETH_USDT;
-  main_ticker = process.env.ETH_SYMBOL;
-}
-
-var getAccountEndpoint = apiRoot + process.env.BINANCE_ENDPOINT_ACCOUNT;
-
-
-
+var tradePrice = null;
 
 //Run in setinterval
 const tick = async(config) => {
 
-//TESTING
-  // if(results[0].data.bitcoin.usd >= 62000){
-  //   results[0].data.bitcoin.usd -= 100;
-  //   increaser = false;
-  // } else if(results[0].data.bitcoin.usd <= 58000){
-  //   results[0].data.bitcoin.usd += 100;
-  //   increaser = true;
-  // } else {
-  //   if(increaser){
-  //     results[0].data.bitcoin.usd += 100;
-  //   } else {
-  //     results[0].data.bitcoin.usd -= 100;
-  //   }
-  // }
 
-  //END TESTING
+  // await getAmountsHeld(process.env.BNB_SYMBOL, process.env.USDT_SYMBOL, initService.apiSecret,  initService.apiKey, initService.apiRoot, axiosService, "BUY");
 
-  //set default
 
+  console.log(holding + " HOLDING");
+  //Get order data from binance
+  let orderbook = await getBuyOrderbook(initService.compare_ticker, initService.apiRoot, axiosService);
+  console.log(orderbook[0].data);
+
+  //timestamp for signature
+  const timestamp = axiosService.generateTimestamp();
   var dateShow = new Date(timestamp);
 
   const { buyPercentage, sellPercentage } = config;
+console.log(buyPercentage);
+console.log(sellPercentage);
+  //Get the market price - here we use bid or ask, depending on hold status;
+  //Really should be called order book price
+  const orderbookPrice = setMarketPrice(holding, orderbook[0].data);
 
-  //Get the market price
-  let results = await getPrice(compare_ticker); //get the marketprice
-  const marketPrice = results[0].data.price;  //results
+  const marketPrice = await getPrice(initService.compare_ticker, initService.apiRoot);
 
   if (!priceTracker){
     priceTracker = marketPrice;
@@ -134,95 +82,119 @@ type – the type of order you want to submit. Possible values
 */
 
 
-  //If holding, don't care about the priceTracker, only care about buyTracker
-  if(holding){
-    //Get the difference
-    //The diff will be negative if price has risen, positive if price has fallen
-    let priceDiff = buyTracker - marketPrice;
+  //Check the open orders. If there is a buy order, and the marketprice is out by X margin, cancel the open order
+  //if there is a sell order then leave the order as is
+  const openOrders = await checkOpenOrders(initService.apiSecret, initService.apiKey, initService.apiRoot, axiosService);
 
-    let increase = false;
 
-    // if(priceDiff < 0){ //live
-    if(priceDiff <= 0){ //test
-      increase = true;
-    }
+  //Cancels open buy orders beyond a certain price
+  let ordersValid = checkOpenOrdersValid(openOrders[0].data, initService.compare_ticker);
+console.log("Order Validity: " + ordersValid);
+  //Only continue if there are no pending orders for the token pair
+  if(ordersValid){
+    //If holding, don't care about the priceTracker, only care about buyTracker
+    if(holding){
+      //Get the difference
+      //The diff will be negative if price has risen, positive if price has fallen
+      let priceDiff = buyTracker - marketPrice;
 
-    let priceDiffRatio = Math.abs(priceDiff / buyTracker);
+      let increase = false;
+      // if(priceDiff < 0){ //live
+      if(priceDiff <= 0){ //test
+        increase = true;
+      }
 
-    //Different criteria for profit vs loss
+      let priceDiffRatio = Math.abs(priceDiff / buyTracker);
 
-    //SELL
-    if(increase && (priceDiffRatio >= sellPercentage)){
+      //Different criteria for profit vs loss
+      //SELL
+      if(increase && (priceDiffRatio >= sellPercentage)){
+        const sellStatus = await placeOrder(initService.compare_ticker, marketPrice, initService.main_ticker, process.env.SELL, orderbookPrice);
+console.log("SELLLLLLLLLLLLLLLLLLLLLLLLLL");
+console.log(sellStatus);
+console.log("SELLLLLLLLLLLLLLLLLLLLLLLLLL");
+        if(sellStatus[0]){
+          //Total remaining in stack
+          let profit = stack * priceDiffRatio;
 
-      placeOrder(compare_ticker, marketPrice, main_ticker, process.env.SELL);
+          stack = stack + profit;
 
-//Total remaining in stack
-      let profit = stack * priceDiffRatio;
+          console.log("SELL! " + profit);
 
-      stack = stack + profit;
+          let msgString = `${dateShow} SELL ${initService.main_ticker} @: $${tradePrice}. Profit $${profit}. Stack $${stack}\r\n`;
+          console.log(msgString);
+          fs.appendFileSync('trades.txt', msgString);
 
-      console.log("SELL! " + profit);
+          buyTracker = null;
+          holding = false;
 
-      let msgString = `${dateShow} SELL ${main_ticker} @: $${marketPrice}. Profit $${profit}. Stack $${stack}\r\n`;
+          priceTracker = tradePrice;
+        }
 
-      fs.appendFileSync('trades.txt', msgString);
+      }
+    } else {
+      //Not holding BUY BUY BUY BUY BUY BUY BUY BUY BUY BUY BUY BUY BUY BUY BUY BUY BUY BUY
+      //Get the difference
+      //The diff will be negative if price has risen, positive if price has fallen
+      /*
+        Here we care about priceTracker
+      */
+      let priceDiff = priceTracker - marketPrice;
+      let decrease = false;
 
-      buyTracker = null;
-      holding = false;
+      // if(priceDiff > 0){  //live
+      if(priceDiff >= 0){ //test
+        decrease = true;
+      }
 
-      priceTracker = marketPrice;
+      let priceDiffRatio = Math.abs(priceDiff / priceTracker);
 
-    }
-  } else {
-    //Not holding BUY
-    //Get the difference
-    //The diff will be negative if price has risen, positive if price has fallen
-    /*
-      Here we care about priceTracker
-    */
-    let priceDiff = priceTracker - marketPrice;
-    let decrease = false;
+      //Different criteria for profit vs loss
+      //BUY
+      if(decrease && (priceDiffRatio >= buyPercentage)){
 
-    // if(priceDiff > 0){  //live
-    if(priceDiff >= 0){ //test
-      decrease = true;
-    }
+        //Set the buy order and get the buy status
+        // console.log(initService.compare_ticker);
 
-    let priceDiffRatio = Math.abs(priceDiff / priceTracker);
+        //successful buy must be at ask price or higher
+        let buyStatus = await placeOrder(initService.compare_ticker, marketPrice, initService.main_ticker, process.env.BUY, orderbookPrice);
 
-    //Different criteria for profit vs loss
-    //BUY
-    if(decrease && (priceDiffRatio >= buyPercentage)){
+        //Only set as bought if bought - otherwise continue checking the order
+        if(buyStatus[0]){
+          console.log("BUYING!!!");
+          // console.log(buyStatus + " STATUS");
+          let msgString = `${dateShow} BUY ${initService.main_ticker} @: $${tradePrice}\r\n`;
 
-      placeOrder(compare_ticker, marketPrice, main_ticker, process.env.BUY);
+          fs.appendFileSync('trades.txt', msgString);
 
-      let msgString = `${dateShow} BUY ${main_ticker} @: $${marketPrice}\r\n`;
+          buyTracker = tradePrice
+          priceTracker = tradePrice;
+          holding = true;
 
-      fs.appendFileSync('trades.txt', msgString);
+          console.log(msgString);
+        } else {
+          console.log("Buy not successful");
+        }
+      }
 
-      buyTracker = marketPrice
-      priceTracker = marketPrice;
-      holding = true;
+      //Set pricetracker logic
+      /*
+        if previous vs current market higher than 1% increase, then reset
+      */
+      if(!decrease && priceDiffRatio > buyPercentage){
+        priceTracker = marketPrice;
+      }
+    }//end holding
 
-      console.log(msgString);
-    }
-
-    //Set pricetracker logic
-    /*
-      if previous vs current market higher than 1% increase, then reset
-    */
-    if(!decrease && priceDiffRatio > buyPercentage){
-      priceTracker = marketPrice;
-    }
-  }
+  }//end orders valid
 
 
   console.log(`
-    Current: ${compare_ticker} $${marketPrice}... Pricetracker: $${priceTracker}
+    Current: ${initService.compare_ticker} $${marketPrice}... Pricetracker: $${priceTracker}
   `);
 
   //Add records
-  let msgString = `${dateShow} ${compare_ticker}: $${marketPrice}\r\n`;
+  let msgString = `${dateShow} ${initService.compare_ticker}: $${marketPrice}s\r\n`;
   fs.appendFileSync('history.txt', msgString);
 
 
@@ -231,9 +203,9 @@ type – the type of order you want to submit. Possible values
 
 const run = () => {
   const config = {
-    buyPercentage: 0.0, //%fall to buy
-    sellPercentage: 0.0, //% rise to buy
-    tickInterval: 1000
+    buyPercentage: process.env.BUY_PERCENTAGE, //%fall to buy
+    sellPercentage: process.env.SELL_PERCENTAGE, //% rise to sell
+    tickInterval: 3000
   };
 
 
@@ -244,65 +216,20 @@ const run = () => {
 run();
 
 
-async function getAxios(endpoint, headers){
-  //get Prices
-  const results = await Promise.all([
+function checkStatus(buyObj){
 
-    axios.get(endpoint, headers).catch(function (error) {
-      if (error.response) {
-        // Request made and server responded
-        console.log(error.response.data);
-        console.log(error.response.status);
-        console.log(error.response.headers);
-      } else if (error.request) {
-        // The request was made but no response was received
-        // console.log(error.request);
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        console.log('Error', error.message);
-      }
-      fs.appendFileSync('errors.txt', "  Error!");
-    })
-  ]);
 
-  return results;
 }
-
-
-async function postAxios(endPoint, payload, headers){
-  const results = await Promise.all([
-
-    axios.post(endPoint, payload, headers).catch(function (error) {
-      if (error.response) {
-        // Request made and server responded
-        console.log(error.response.data);
-        console.log(error.response.status);
-        console.log(error.response.headers);
-      } else if (error.request) {
-        // The request was made but no response was received
-        console.log(error.request);
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        console.log('Error', error.message);
-      }
-      fs.appendFileSync('errors.txt', "  Error!");
-    })
-  ]);
-
-  return results;
-}
-
 
 async function setSell(priceDiffRatio, marketPrice){
   //Total remaining in stack
   let profit = stack * priceDiffRatio;
 
-
   stack = stack + profit;
 
   console.log("SELL! " + profit);
 
-  let msgString = `${dateShow} SELL ${compare_ticker} @: $${marketPrice}. Profit $${profit}. Stack $${stack}\r\n`;
+  let msgString = `${dateShow} SELL ${initService.compare_ticker} @: $${marketPrice}. Profit $${profit}. Stack $${stack}\r\n`;
 
   fs.appendFileSync('trades.txt', msgString);
 
@@ -313,7 +240,7 @@ async function setSell(priceDiffRatio, marketPrice){
   //https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT
 }
 
-async function getPrice(the_ticker){
+async function getPrice(the_ticker, apiRoot){
   //Get the balance of our tokens
   let headersmainb = {
     headers: {
@@ -322,7 +249,22 @@ async function getPrice(the_ticker){
   }
 
   let tradeendpoint = apiRoot + process.env.BINANCE_ENDPOINT_PRICE + the_ticker;
-  let value = await getAxios(tradeendpoint, headersmainb);
+  let value = await axiosService.getAxios(tradeendpoint, headersmainb, fs);
+  return value[0].data.price;
+
+}
+
+//Gets the latest bid and ask for a ticker pair
+async function getBuyOrderbook(the_ticker, apiRoot, axiosService){
+  //Get the balance of our tokens
+  let headersmainb = {
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  }
+
+  let tradeendpoint = apiRoot + process.env.BINANCE_ENDPOINT_ORDERBOOK + the_ticker;
+  let value = await axiosService.getAxios(tradeendpoint, headersmainb, fs);
   return value;
 
 }
@@ -330,79 +272,151 @@ async function getPrice(the_ticker){
 
 
 
-function setPrice(side, marketPrice){
 
-  //Rounding precision dp
-  let precision = 100;
+async function placeOrder(theTicker, marketPrice, rawTicker, side, orderbookPrice){
 
-  //offset to allow for room when spot trading
-  let offset = 0.0005;
+  const offsetRatio = 0.01;
+  let timeInForce = "GTC";
 
   if(side == process.env.BUY){
-    //ceiling to buy. Floor to sell.
-    marketPrice = marketPrice * (1 + offset);
-    marketPrice = Math.ceil(marketPrice * precision) / precision;
-  } else {
-    marketPrice = marketPrice - (marketPrice * offset);
-    marketPrice = Math.floor(marketPrice * precision) / precision;
+    // timeInForce = "FOK";
   }
 
-  return marketPrice;
-}
-
-async function placeOrder(theTicker, marketPrice, rawTicker, side){
   //BUY IS WHEN WE BUY ETH WITH TETHER
   //SELL US WHEN WE SELL TETHER FOR ETH
 
-  // let results = await getPrice(theTicker); //remove
-  //
-  // marketPrice = results[0].data.price;  //results remove
+  const timestamp = axiosService.generateTimestamp();
 
-  marketPrice = setPrice(side, marketPrice);
+  tradePrice = setTradePrice(side, orderbookPrice, marketPrice, offsetRatio);
+
 
   //get amounts held
-  let amountsHeld = await getAmountsHeld(rawTicker, process.env.USDT_SYMBOL);
+  let amountsHeld = await getAmountsHeld(rawTicker, process.env.USDT_SYMBOL, initService.apiSecret,  initService.apiKey, initService.apiRoot, axiosService, side);
 
-  let buyAmountb = Math.floor(amountsHeld['BNB'] * 100 * 0.999) / 100;
+  //set the amount to buy
+  let buyAmount = calculateTradeAmount(side, amountsHeld[rawTicker], amountsHeld[process.env.USDT_SYMBOL], tradePrice);
 
-  buyAmount = 0.22;
+// console.log(buyAmount);
+  if(side == process.env.BUY){
+    buyAmount = buyAmount / 50; //testing
+    buyAmount = buyAmount.toFixed(initService.precision);
+  }
 
-  datasetc = "symbol="+theTicker+"&side="+side+"&type=LIMIT&quantity="+buyAmount+"&timeInForce=FOK&price="+marketPrice+"&newClientOrderId=my_order_id_1&timestamp="+timestamp;
+// console.log(tradePrice);
+  datasetc = "symbol=" + theTicker + "&side=" + side + "&type=LIMIT&quantity=" + buyAmount + "&timeInForce=" + timeInForce +"&price=" + tradePrice + "&newClientOrderId=my_order_id_1&timestamp=" + timestamp;
 
-  const signb = buildSign(datasetc, apiSecret);
+
+  const signb = buildSign(datasetc, initService.apiSecret);
 
   // let endpointb = apiRoot + process.env.BINANCE_ENDPOINT_ORDER + "?" + datasetc + "&signature=" + signb;
-  let endpointb = apiRoot + process.env.BINANCE_ENDPOINT_ORDER;
+  let endpointb = initService.apiRoot + process.env.BINANCE_ENDPOINT_ORDER;
   let endpointSend = endpointb + "?" + datasetc + '&signature=' + signb;
-
-  console.log(datasetc);
+// console.log(endpointSend);
+  // console.log(datasetc);
 
   var config = {
     method: 'post',
     url: endpointSend,
     headers: {
       'Content-Type': 'application/json',
-      'X-MBX-APIKEY': apiKey
+      'X-MBX-APIKEY': initService.apiKey
     }
   };
 
-  axios(config)
-  .then(function (response) {
-    console.log(JSON.stringify(response.data));
-  })
-  .catch(function (error) {
-    console.log(error);
-  });
+  const results = await Promise.all([
+
+    axios(config)
+    .then(function (response) {
+      return JSON.stringify(response.data);
+    })
+    .catch(function (error) {
+      // console.log(error);
+      return false;
+    })
+
+  ]);
+
+  return results;
+}
+
+
+async function cancelOrder(theTicker, orderNumber){
+  const timestamp = axiosService.generateTimestamp();
+
+  dataset = "symbol=" + theTicker + "&orderId=" + orderNumber + "&timestamp=" + timestamp;
+
+  const sign = buildSign(dataset, initService.apiSecret);
+
+  let endpointb = initService.apiRoot + process.env.BINANCE_ENDPOINT_ORDER;
+  let endpointSend = endpointb + "?" + dataset + '&signature=' + sign;
+
+  // console.log(datasetc);
+
+  var config = {
+    method: 'delete',
+    url: endpointSend,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-MBX-APIKEY': initService.apiKey
+    }
+  };
+
+  const results = await Promise.all([
+
+    axios(config)
+    .then(function (response) {
+      return JSON.stringify(response.data);
+    })
+    .catch(function (error) {
+      return false;
+    })
+
+  ]);
+
+  return results;
 }
 
 
 
 
-async function getAmountsHeld(curA, curB){
+async function getAmountsHeld(curA, curB, apiSecret, apiKey, apiRoot, axiosService, side){
+  const timestamp = axiosService.generateTimestamp();
+  let dataset = "timestamp=" + timestamp;
+
+  const sign = buildSign(dataset, apiSecret);
+
+
+  //Get the balance of our tokens
+  let headersmain = {
+    headers: {
+      'Content-Type': 'application/json',
+      'X-MBX-APIKEY': apiKey
+    }
+  }
+
+  let endpoint = apiRoot + process.env.BINANCE_ENDPOINT_ACCOUNT + "?" + dataset + "&signature=" + sign;
+
+  let value = await axiosService.getAxios(endpoint, headersmain, fs);
+
+  var vals = {};
+
+  console.log(value[0].data.balances);
+
+  for(let i = 0; i < value[0].data.balances.length; i++){
+    if(value[0].data.balances[i].asset === curA){
+      vals[curA] = value[0].data.balances[i].free;
+    } else if(value[0].data.balances[i].asset === curB){
+      vals[curB] = value[0].data.balances[i].free;
+    }
+  }
+  return vals;
+}
+
+//Checks pending orders on chain
+async function checkOpenOrders(apiSecret, apiKey, apiRoot, axiosService){
+  const timestamp = axiosService.generateTimestamp();
 
   let dataset = "timestamp=" + timestamp;
-  // apiSecret="NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j";
-  // dataset = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559";
 
   const sign = buildSign(dataset, apiSecret);
 
@@ -416,23 +430,86 @@ async function getAmountsHeld(curA, curB){
     }
   }
 
-  let endpoint = apiRoot + process.env.BINANCE_ENDPOINT_ACCOUNT + "?" + dataset + "&signature=" + sign;
+  let endpoint = apiRoot + process.env.BINANCE_ENDPOINT_OPEN_ORDERS + "?" + dataset + "&signature=" + sign;
 
-  let value = await getAxios(endpoint, headersmain);
+  let response = await axiosService.getAxios(endpoint, headersmain, fs);
 
-  var vals = {};
+  return response;
+  //BINANCE_ENDPOINT_OPEN_ORDERS
+}
 
-  console.log(value[0].data.balances);
+function setOrderbookPrice(holding, orderbook){
+  let marketPrice = null;
+  //sell
+  if(holding){
+      marketPrice = orderbook[0].data.bidPrice;
+  } else {
+    //Buy
+      marketPrice = orderbook[0].data.askPrice;
+  }
+  return marketPrice;
 
-  for(let i = 0; i < value[0].data.balances.length; i++){
-    if(value[0].data.balances[i].asset === curA){
-      vals[curA] = value[0].data.balances[i].free;
-    } else if(value[0].data.balances[i].asset === curB){
-      vals[curB] = value[0].data.balances[i].free;
+}
+
+//If orders are buy, and buy price is lower than marketprice by ratio, then cancel
+function checkOpenOrdersValid(orders, theTicker){
+  //do not process orders if there is already an existing order for the same ticker
+  let counter = 0;
+  for(let i = 0; i < orders.length; i++){
+    if(orders[i].symbol == theTicker){
+      counter++;
+    }
+  }
+  if(counter >= 1){
+    // console.log("INVALID");
+    return false;
+  } else {
+    return true;
+  }
+}
+
+
+function setMarketPrice(holding, orderbookData){
+  let marketPrice = orderbookData.askPrice;
+  //selling
+  if(holding){
+    marketPrice = orderbookData.bidPrice;
+  }
+
+  return marketPrice;
+}
+
+
+function setTradePrice(side, bookPrice, marketPrice, ratio){
+  if(side == process.env.SELL){
+    if(bookPrice > (marketPrice - (marketPrice * ratio))){
+      bookPrice -= 10; //test
+      return bookPrice;
+    }
+  } else if(side == process.env.BUY){
+    if(bookPrice < (marketPrice + (marketPrice * ratio))){
+      bookPrice += 10;
+      return bookPrice;
     }
   }
 
-  return vals;
+  return marketPrice;
+}
+
+function calculateTradeAmount(side, curAQuantity, usdtQuantity, price){
 
 
+  //Buy - we need to calculate how much token we can get for our USDT
+  if(side == process.env.BUY){
+    // let amount = Math.floor( 1 / price * usdtQuantity * 1000 / 999 / 1000);
+    let amount = 1 / price * usdtQuantity * 1000 / 998;
+    amount = amount.toFixed(initService.precision);
+    return amount;
+    // 1 btc = 100 usdt
+    // I can buy 1 / 100 btc * 50usdt
+  } else if(side == process.env.SELL){
+    let amount = curAQuantity * 1000 / 999 / 1000;
+    amount = amount.toFixed(initService.precision);
+    return amount;
+  }
 }
