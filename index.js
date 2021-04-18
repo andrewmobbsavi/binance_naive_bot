@@ -205,7 +205,7 @@ const run = () => {
   const config = {
     buyPercentage: process.env.BUY_PERCENTAGE, //%fall to buy
     sellPercentage: process.env.SELL_PERCENTAGE, //% rise to sell
-    tickInterval: 3000
+    tickInterval: 10000
   };
 
 
