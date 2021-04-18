@@ -99,8 +99,8 @@ console.log("Order Validity: " + ordersValid);
       let priceDiff = buyTracker - marketPrice;
 
       let increase = false;
-      // if(priceDiff < 0){ //live
-      if(priceDiff <= 0){ //test
+      if(priceDiff < 0){ //live
+      // if(priceDiff <= 0){ //test
         increase = true;
       }
 
@@ -142,8 +142,8 @@ console.log("SELLLLLLLLLLLLLLLLLLLLLLLLLL");
       let priceDiff = priceTracker - marketPrice;
       let decrease = false;
 
-      // if(priceDiff > 0){  //live
-      if(priceDiff >= 0){ //test
+      if(priceDiff > 0){  //live
+      // if(priceDiff >= 0){ //test
         decrease = true;
       }
 
