@@ -1,27 +1,16 @@
 require('dotenv').config();
 
-/*
-  BUY AND SELL VERIFICATIONS. IF NO VERIFICATION, THEN FAIL.
-  ALSO, VERIFICATION OF PRICE
-*/
-
 const { createHmac,} = require('crypto');
-const axios = require('axios');
+
 const axiosService = require('./services/axios_service');
-axiosService.setAxios(axios);
 //store data
 const fs = require('fs');
 
 const marketService = require('./services/market_service');
-
+const parserService = require('./services/parser_service');
 const initService = require('./services/init_service');
 
 
-/*
-  1. Get balance
-  2. Get price
-  3. Calculate buy amount ie. price * tether
-*/
 
 //See https://github.com/binance-exchange/binance-signature-examples
 
@@ -48,24 +37,47 @@ var tradePrice = null;
 const tick = async(config) => {
 
 
-  // await getAmountsHeld(process.env.BNB_SYMBOL, process.env.USDT_SYMBOL, initService.apiSecret,  initService.apiKey, initService.apiRoot, axiosService, "BUY");
-
-
   console.log(holding + " HOLDING");
-  //Get order data from binance
-  let orderbook = await getBuyOrderbook(initService.compare_ticker, initService.apiRoot, axiosService);
-  console.log(orderbook[0].data);
+  //Get order data from binance - will not continue unless successful
+  let orderbook = await marketService.getOrderbook(initService.compare_ticker, initService.apiRoot, axiosService, fs);
+
+  //before next we need to get the amount of tether in our account and pass instead of 40,000
+
+  //get Buy price and volume
+  const buyOrders = parserService.calculateBuyPriceAndAmount(orderbook[0].data.asks, 40000, initService.precision);
+
+  console.log(buyOrders);
+
+  throw("buyOrders");
+  //get latest buy price
+
+  /*
+    1. Calculate current holdings relative to currency
+        ie. if we are in buy state, calculate
+          a) Tether / average price = eth desired
+          b) Loop through asks and sum the volumes until we reach eth desired
+          c) Record that price
+          d) Set the market buy price as that price
+
+
+        After buy state, set sell price at 0.X % above buy price
+  */
+
+
 
   //timestamp for signature
   const timestamp = axiosService.generateTimestamp();
   var dateShow = new Date(timestamp);
 
   const { buyPercentage, sellPercentage } = config;
-console.log(buyPercentage);
-console.log(sellPercentage);
+
   //Get the market price - here we use bid or ask, depending on hold status;
   //Really should be called order book price
   const orderbookPrice = setMarketPrice(holding, orderbook[0].data);
+
+
+
+
 
   const marketPrice = await getPrice(initService.compare_ticker, initService.apiRoot);
 
@@ -82,14 +94,15 @@ type – the type of order you want to submit. Possible values
 */
 
 
-  //Check the open orders. If there is a buy order, and the marketprice is out by X margin, cancel the open order
-  //if there is a sell order then leave the order as is
+  //Check the open orders.
   const openOrders = await checkOpenOrders(initService.apiSecret, initService.apiKey, initService.apiRoot, axiosService);
 
 
   //Cancels open buy orders beyond a certain price
   let ordersValid = checkOpenOrdersValid(openOrders[0].data, initService.compare_ticker);
-console.log("Order Validity: " + ordersValid);
+
+
+
   //Only continue if there are no pending orders for the token pair
   if(ordersValid){
     //If holding, don't care about the priceTracker, only care about buyTracker
@@ -109,7 +122,7 @@ console.log("Order Validity: " + ordersValid);
       //Different criteria for profit vs loss
       //SELL
       if(increase && (priceDiffRatio >= sellPercentage)){
-        const sellStatus = await placeOrder(initService.compare_ticker, marketPrice, initService.main_ticker, process.env.SELL, orderbookPrice);
+        const sellStatus = await placeOrder(initService.compare_ticker, marketPrice, initService.main_ticker, process.env.SELL, orderbookPrice, fs);
 console.log("SELLLLLLLLLLLLLLLLLLLLLLLLLL");
 console.log(sellStatus);
 console.log("SELLLLLLLLLLLLLLLLLLLLLLLLLL");
@@ -157,7 +170,7 @@ console.log("SELLLLLLLLLLLLLLLLLLLLLLLLLL");
         // console.log(initService.compare_ticker);
 
         //successful buy must be at ask price or higher
-        let buyStatus = await placeOrder(initService.compare_ticker, marketPrice, initService.main_ticker, process.env.BUY, orderbookPrice);
+        let buyStatus = await placeOrder(initService.compare_ticker, marketPrice, initService.main_ticker, process.env.BUY, orderbookPrice, fs);
 
         //Only set as bought if bought - otherwise continue checking the order
         if(buyStatus[0]){
@@ -254,26 +267,9 @@ async function getPrice(the_ticker, apiRoot){
 
 }
 
-//Gets the latest bid and ask for a ticker pair
-async function getBuyOrderbook(the_ticker, apiRoot, axiosService){
-  //Get the balance of our tokens
-  let headersmainb = {
-    headers: {
-      'Content-Type': 'application/json',
-    }
-  }
-
-  let tradeendpoint = apiRoot + process.env.BINANCE_ENDPOINT_ORDERBOOK + the_ticker;
-  let value = await axiosService.getAxios(tradeendpoint, headersmainb, fs);
-  return value;
-
-}
 
 
-
-
-
-async function placeOrder(theTicker, marketPrice, rawTicker, side, orderbookPrice){
+async function placeOrder(theTicker, marketPrice, rawTicker, side, orderbookPrice, fs){
 
   const offsetRatio = 0.01;
   let timeInForce = "GTC";
@@ -291,18 +287,11 @@ async function placeOrder(theTicker, marketPrice, rawTicker, side, orderbookPric
 
 
   //get amounts held
-  let amountsHeld = await getAmountsHeld(rawTicker, process.env.USDT_SYMBOL, initService.apiSecret,  initService.apiKey, initService.apiRoot, axiosService, side);
+  let amountsHeld = await getAmountsHeld(rawTicker, process.env.USDT_SYMBOL, initService.apiSecret,  initService.apiKey, initService.apiRoot, axiosService, side, fs);
 
   //set the amount to buy
   let buyAmount = calculateTradeAmount(side, amountsHeld[rawTicker], amountsHeld[process.env.USDT_SYMBOL], tradePrice);
 
-// console.log(buyAmount);
-  // if(side == process.env.BUY){
-  //   buyAmount = buyAmount / 50; //testing
-  //   buyAmount = buyAmount.toFixed(initService.precision);
-  // }
-
-// console.log(tradePrice);
   datasetc = "symbol=" + theTicker + "&side=" + side + "&type=LIMIT&quantity=" + buyAmount + "&timeInForce=" + timeInForce +"&price=" + tradePrice + "&newClientOrderId=my_order_id_1&timestamp=" + timestamp;
 
 
@@ -379,7 +368,7 @@ async function cancelOrder(theTicker, orderNumber){
 
 
 
-async function getAmountsHeld(curA, curB, apiSecret, apiKey, apiRoot, axiosService, side){
+async function getAmountsHeld(curA, curB, apiSecret, apiKey, apiRoot, axiosService, side, fs){
   const timestamp = axiosService.generateTimestamp();
   let dataset = "timestamp=" + timestamp;
 

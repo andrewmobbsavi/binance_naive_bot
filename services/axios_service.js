@@ -1,15 +1,21 @@
+const axios = require('axios');
+
 class axios_service{
 
-  setAxios(axios){
-    this.axios = axios;
-  }
-
-
+  /**
+  * Submit an axios get request with headers.
+  *
+  * @param endpoint str - uri to the api endpoint
+  * @param headers obj - headers sent to request
+  * @param fs obj - file system object to enable writing to filesystem
+  *
+  * @returns results obj
+  */
   async getAxios(endpoint, headers, fs){
     //get Prices
     const results = await Promise.all([
 
-      this.axios.get(endpoint, headers).catch(function (error) {
+      axios.get(endpoint, headers).catch(function (error) {
         if (error.response) {
           // Request made and server responded
           console.log(error.response.data);
@@ -23,6 +29,7 @@ class axios_service{
           console.log('Error', error.message);
         }
         fs.appendFileSync('errors.txt', "  Error!");
+        throw("AXIOS ERROR");
       })
     ]);
 
@@ -53,6 +60,11 @@ class axios_service{
     return results;
   }
 
+  /**
+  * Submit an axios get request with headers.
+  *
+  * returns timstamp
+  */
   generateTimestamp(){
     //reset the timestamp for new signatures
     const timestamp = Number(new Date());
