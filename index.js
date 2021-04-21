@@ -16,11 +16,6 @@ const initService = require('./services/init_service');
 
 //****************************************************************************************//
 
-//globals for generating signatures in api calls
-
-const buildSign = (data, secret) => {
-  return createHmac('sha256', secret).update(data).digest('hex');
-};
 
 
 //Amount of money
@@ -48,7 +43,7 @@ const tick = async(config) => {
 
   console.log(buyOrders);
 
-  throw("buyOrders");
+  // throw("buyOrders");
   //get latest buy price
 
   /*
@@ -73,19 +68,14 @@ const tick = async(config) => {
 
   //Get the market price - here we use bid or ask, depending on hold status;
   //Really should be called order book price
-  const orderbookPrice = setMarketPrice(holding, orderbook[0].data);
-
-
-
-
-
-  const marketPrice = await getPrice(initService.compare_ticker, initService.apiRoot);
+  const orderbookPrice = buyOrders[0];
+  const marketPrice = orderbookPrice;
 
   if (!priceTracker){
     priceTracker = marketPrice;
   }
 
-
+  let amountsHeld = await marketService.getAmountsHeld(initService.main_ticker, process.env.USDT_SYMBOL, initService.apiSecret,  initService.apiKey, initService.apiRoot, axiosService, "BUY", fs);
 /*
 symbol – we’ve come across this one previously. This is the pair you want to trade.
 side – here, you’ll stipulate whether you want to BUY or SELL. With the BTCUSDT pair,
@@ -95,14 +85,13 @@ type – the type of order you want to submit. Possible values
 
 
   //Check the open orders.
-  const openOrders = await checkOpenOrders(initService.apiSecret, initService.apiKey, initService.apiRoot, axiosService);
-
+  const openOrders = await marketService.checkOpenOrders(initService.apiSecret, initService.apiKey, initService.apiRoot, axiosService, fs);
 
   //Cancels open buy orders beyond a certain price
-  let ordersValid = checkOpenOrdersValid(openOrders[0].data, initService.compare_ticker);
+  let ordersValid = marketService.checkOpenOrdersValid(openOrders[0].data, initService.compare_ticker);
 
 
-
+  throw("TEST");
   //Only continue if there are no pending orders for the token pair
   if(ordersValid){
     //If holding, don't care about the priceTracker, only care about buyTracker
@@ -287,7 +276,7 @@ async function placeOrder(theTicker, marketPrice, rawTicker, side, orderbookPric
 
 
   //get amounts held
-  let amountsHeld = await getAmountsHeld(rawTicker, process.env.USDT_SYMBOL, initService.apiSecret,  initService.apiKey, initService.apiRoot, axiosService, side, fs);
+  let amountsHeld = await marketService.getAmountsHeld(rawTicker, process.env.USDT_SYMBOL, initService.apiSecret,  initService.apiKey, initService.apiRoot, axiosService, side, fs);
 
   //set the amount to buy
   let buyAmount = calculateTradeAmount(side, amountsHeld[rawTicker], amountsHeld[process.env.USDT_SYMBOL], tradePrice);
@@ -368,64 +357,7 @@ async function cancelOrder(theTicker, orderNumber){
 
 
 
-async function getAmountsHeld(curA, curB, apiSecret, apiKey, apiRoot, axiosService, side, fs){
-  const timestamp = axiosService.generateTimestamp();
-  let dataset = "timestamp=" + timestamp;
 
-  const sign = buildSign(dataset, apiSecret);
-
-
-  //Get the balance of our tokens
-  let headersmain = {
-    headers: {
-      'Content-Type': 'application/json',
-      'X-MBX-APIKEY': apiKey
-    }
-  }
-
-  let endpoint = apiRoot + process.env.BINANCE_ENDPOINT_ACCOUNT + "?" + dataset + "&signature=" + sign;
-
-  let value = await axiosService.getAxios(endpoint, headersmain, fs);
-
-  var vals = {};
-
-  console.log(value[0].data.balances);
-
-  for(let i = 0; i < value[0].data.balances.length; i++){
-    if(value[0].data.balances[i].asset === curA){
-      vals[curA] = value[0].data.balances[i].free;
-    } else if(value[0].data.balances[i].asset === curB){
-      vals[curB] = value[0].data.balances[i].free;
-    }
-  }
-  return vals;
-}
-
-//Checks pending orders on chain
-async function checkOpenOrders(apiSecret, apiKey, apiRoot, axiosService){
-  const timestamp = axiosService.generateTimestamp();
-
-  let dataset = "timestamp=" + timestamp;
-
-  const sign = buildSign(dataset, apiSecret);
-
-  // console.log(sign);
-
-  //Get the balance of our tokens
-  let headersmain = {
-    headers: {
-      'Content-Type': 'application/json',
-      'X-MBX-APIKEY': apiKey
-    }
-  }
-
-  let endpoint = apiRoot + process.env.BINANCE_ENDPOINT_OPEN_ORDERS + "?" + dataset + "&signature=" + sign;
-
-  let response = await axiosService.getAxios(endpoint, headersmain, fs);
-
-  return response;
-  //BINANCE_ENDPOINT_OPEN_ORDERS
-}
 
 function setOrderbookPrice(holding, orderbook){
   let marketPrice = null;
@@ -440,33 +372,6 @@ function setOrderbookPrice(holding, orderbook){
 
 }
 
-//If orders are buy, and buy price is lower than marketprice by ratio, then cancel
-function checkOpenOrdersValid(orders, theTicker){
-  //do not process orders if there is already an existing order for the same ticker
-  let counter = 0;
-  for(let i = 0; i < orders.length; i++){
-    if(orders[i].symbol == theTicker){
-      counter++;
-    }
-  }
-  if(counter >= 1){
-    // console.log("INVALID");
-    return false;
-  } else {
-    return true;
-  }
-}
-
-
-function setMarketPrice(holding, orderbookData){
-  let marketPrice = orderbookData.askPrice;
-  //selling
-  if(holding){
-    marketPrice = orderbookData.bidPrice;
-  }
-
-  return marketPrice;
-}
 
 
 function setTradePrice(side, bookPrice, marketPrice, ratio){
