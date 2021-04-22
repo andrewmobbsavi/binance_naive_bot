@@ -37,7 +37,6 @@ const tick = async(config) => {
   let orderbook = await marketService.getOrderbook(initService.compare_ticker, initService.apiRoot, axiosService, fs);
 
   //before next we need to get the amount of tether in our account and pass instead of 40,000
-
   //get Buy price and volume
   const buyOrders = parserService.calculateBuyPriceAndAmount(orderbook[0].data.asks, 40000, initService.precision);
 
@@ -91,7 +90,6 @@ type – the type of order you want to submit. Possible values
   let ordersValid = marketService.checkOpenOrdersValid(openOrders[0].data, initService.compare_ticker);
 
 
-  throw("TEST");
   //Only continue if there are no pending orders for the token pair
   if(ordersValid){
     //If holding, don't care about the priceTracker, only care about buyTracker
@@ -144,22 +142,24 @@ console.log("SELLLLLLLLLLLLLLLLLLLLLLLLLL");
       let priceDiff = priceTracker - marketPrice;
       let decrease = false;
 
-      if(priceDiff > 0){  //live
-      // if(priceDiff >= 0){ //test
-        decrease = true;
-      }
-
       let priceDiffRatio = Math.abs(priceDiff / priceTracker);
+
+      //test
+      let testbuyPercentage = 0
 
       //Different criteria for profit vs loss
       //BUY
-      if(decrease && (priceDiffRatio >= buyPercentage)){
+      // if((priceDiff > 0) && (priceDiffRatio >= buyPercentage)){
+      if((priceDiff >= 0) && (priceDiffRatio >= testbuyPercentage)){ //test
 
         //Set the buy order and get the buy status
-        // console.log(initService.compare_ticker);
+        //get amounts held
+        let amountsHeld = await marketService.getAmountsHeld(initService.main_ticker, process.env.USDT_SYMBOL, initService.apiSecret,  initService.apiKey, initService.apiRoot, axiosService, process.env.BUY, fs);
 
         //successful buy must be at ask price or higher
-        let buyStatus = await placeOrder(initService.compare_ticker, marketPrice, initService.main_ticker, process.env.BUY, orderbookPrice, fs);
+        let timestampBuy = axiosService.generateTimestamp();
+
+        let buyStatus = await marketService.placeOrder(initService.compare_ticker, marketPrice, initService.main_ticker, process.env.BUY, fs, axiosService, amountsHeld, initService);
 
         //Only set as bought if bought - otherwise continue checking the order
         if(buyStatus[0]){
@@ -258,64 +258,6 @@ async function getPrice(the_ticker, apiRoot){
 
 
 
-async function placeOrder(theTicker, marketPrice, rawTicker, side, orderbookPrice, fs){
-
-  const offsetRatio = 0.01;
-  let timeInForce = "GTC";
-
-  if(side == process.env.BUY){
-    // timeInForce = "FOK";
-  }
-
-  //BUY IS WHEN WE BUY ETH WITH TETHER
-  //SELL US WHEN WE SELL TETHER FOR ETH
-
-  const timestamp = axiosService.generateTimestamp();
-
-  tradePrice = setTradePrice(side, orderbookPrice, marketPrice, offsetRatio);
-
-
-  //get amounts held
-  let amountsHeld = await marketService.getAmountsHeld(rawTicker, process.env.USDT_SYMBOL, initService.apiSecret,  initService.apiKey, initService.apiRoot, axiosService, side, fs);
-
-  //set the amount to buy
-  let buyAmount = calculateTradeAmount(side, amountsHeld[rawTicker], amountsHeld[process.env.USDT_SYMBOL], tradePrice);
-
-  datasetc = "symbol=" + theTicker + "&side=" + side + "&type=LIMIT&quantity=" + buyAmount + "&timeInForce=" + timeInForce +"&price=" + tradePrice + "&newClientOrderId=my_order_id_1&timestamp=" + timestamp;
-
-
-  const signb = buildSign(datasetc, initService.apiSecret);
-
-  // let endpointb = apiRoot + process.env.BINANCE_ENDPOINT_ORDER + "?" + datasetc + "&signature=" + signb;
-  let endpointb = initService.apiRoot + process.env.BINANCE_ENDPOINT_ORDER;
-  let endpointSend = endpointb + "?" + datasetc + '&signature=' + signb;
-// console.log(endpointSend);
-  // console.log(datasetc);
-
-  var config = {
-    method: 'post',
-    url: endpointSend,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-MBX-APIKEY': initService.apiKey
-    }
-  };
-
-  const results = await Promise.all([
-
-    axios(config)
-    .then(function (response) {
-      return JSON.stringify(response.data);
-    })
-    .catch(function (error) {
-      // console.log(error);
-      return false;
-    })
-
-  ]);
-
-  return results;
-}
 
 
 async function cancelOrder(theTicker, orderNumber){
@@ -388,22 +330,4 @@ function setTradePrice(side, bookPrice, marketPrice, ratio){
   }
 
   return marketPrice;
-}
-
-function calculateTradeAmount(side, curAQuantity, usdtQuantity, price){
-
-
-  //Buy - we need to calculate how much token we can get for our USDT
-  if(side == process.env.BUY){
-    // let amount = Math.floor( 1 / price * usdtQuantity * 1000 / 999 / 1000);
-    let amount = 1 / price * usdtQuantity * 1000 / 998;
-    amount = amount.toFixed(initService.precision);
-    return amount;
-    // 1 btc = 100 usdt
-    // I can buy 1 / 100 btc * 50usdt
-  } else if(side == process.env.SELL){
-    let amount = curAQuantity * 1000 / 999 / 1000;
-    amount = amount.toFixed(initService.precision);
-    return amount;
-  }
 }

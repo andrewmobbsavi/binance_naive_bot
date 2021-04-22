@@ -1,4 +1,5 @@
 const { createHmac } = require('crypto');
+const axios = require('axios');
 
 //Build signature for api validation
 const buildSign = (data, secret) => {
@@ -42,13 +43,14 @@ class market_service{
   * @param apiSecret str - api secret
   * @param apiKey str - api key
   * @param apiRoot str - api root uri
-  * @param axiosService str - api root uri
+  * @param axiosService str - axios api caller
   *
   * @returns value obj
   */
 
   async getAmountsHeld(curA, curB, apiSecret, apiKey, apiRoot, axiosService, fs){
     const timestamp = axiosService.generateTimestamp();
+
     let dataset = "timestamp=" + timestamp;
 
     const sign = buildSign(dataset, apiSecret);
@@ -128,7 +130,7 @@ class market_service{
   *
   * return bool
   */
-  checkOpenOrdersValid(orders, theTicker){
+  async checkOpenOrdersValid(orders, theTicker){
     //do not process orders if there is already an existing order for the same ticker
     let counter = 0;
     for(let i = 0; i < orders.length; i++){
@@ -144,6 +146,93 @@ class market_service{
     }
   }
 
+
+  /**
+  * Place an order
+  *
+  * @param theTicker str - the ticker pair ie. ETHUSDT
+  * @param marketPrice float - price
+  * @param rawTicker str - the ticker  ie. ETH
+  * @param side str - the side  ie. BUY OR SELL
+  * @param fs obj - file system object to enable writing to filesystem
+  * @param axiosService str - axios api caller
+  *
+  * return response obj
+  */
+  async placeOrder(theTicker, marketPrice, rawTicker, side, fs, axiosService, amountsHeld, initService){
+    const timestamp = axiosService.generateTimestamp();
+    let timeInForce = process.env.TIME_IN_FORCE_GTC;
+
+    //BUY IS WHEN WE BUY ETH WITH TETHER
+    //SELL US WHEN WE SELL TETHER FOR ETH
+
+    //set the amount to buy
+    let buyAmount = this.calculateTradeAmount(side, amountsHeld[rawTicker], amountsHeld[process.env.USDT_SYMBOL], marketPrice, initService);
+
+ buyAmount = buyAmount / 20; //testing
+ buyAmount = buyAmount.toFixed(initService.precision);//testing
+ 
+console.log(buyAmount + "BUY AMOUNT")
+    const dataset = "symbol=" + theTicker + "&side=" + side + "&type=LIMIT&quantity=" + buyAmount + "&timeInForce=" + timeInForce +"&price=" + marketPrice + "&newClientOrderId=my_order_id_1&timestamp=" + timestamp;
+
+    const sign = buildSign(dataset, initService.apiSecret);
+
+    let endpoint = initService.apiRoot + process.env.BINANCE_ENDPOINT_ORDER;
+    let endpointSend = endpoint + "?" + dataset + '&signature=' + sign;
+
+    var config = {
+      method: 'post',
+      url: endpointSend,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-MBX-APIKEY': initService.apiKey
+      }
+    };
+
+    const results = await Promise.all([
+
+      axios(config)
+      .then(function (response) {
+        return JSON.stringify(response.data);
+      })
+      .catch(function (error) {
+        console.log(error);
+        return false;
+      })
+
+    ]);
+
+    return results;
+  }
+
+  /**
+  * Calculate quantity of currency to trade
+  *
+  * @param side str - the side  ie. BUY OR SELL
+  * @param curAQuantity float - Quantity of crypto
+  * @param usdtQuantity float - Quantity of tether
+  * @param price float - buy / sell price of currency
+  * @param initService obj - obecjt of initialized items
+  *
+  * return response obj
+  */
+  calculateTradeAmount(side, curAQuantity, usdtQuantity, price, initService){
+    //Buy - we need to calculate how much token we can get for our USDT
+    if(side == process.env.BUY){
+      //Trade a little bit less than we currently hold to ensure valid transaction
+      let amount = 1 / price * usdtQuantity * 1000 / 1001;
+
+      //All binance transactions require a maximum precision level or fail
+      amount = amount.toFixed(initService.precision);
+      return amount;
+      // 1 btc = 100 usdt
+      // I can buy 1 / 100 btc * 50usdt
+    } else if(side == process.env.SELL){
+      let amount = curAQuantity * 1000 / 999 / 1000;
+      amount = amount.toFixed(initService.precision);
+      return amount;
+    }
+  }
 
 
 }
