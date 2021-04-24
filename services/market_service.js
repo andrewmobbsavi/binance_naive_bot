@@ -130,7 +130,7 @@ class market_service{
   *
   * return bool
   */
-  async checkOpenOrdersValid(orders, theTicker){
+  checkOpenOrdersValid(orders, theTicker){
     //do not process orders if there is already an existing order for the same ticker
     let counter = 0;
     for(let i = 0; i < orders.length; i++){
@@ -167,13 +167,12 @@ class market_service{
     //SELL US WHEN WE SELL TETHER FOR ETH
 
     //set the amount to buy
-    let buyAmount = this.calculateTradeAmount(side, amountsHeld[rawTicker], amountsHeld[process.env.USDT_SYMBOL], marketPrice, initService);
+    let tradeAmount = this.calculateTradeAmount(side, amountsHeld[rawTicker], amountsHeld[process.env.USDT_SYMBOL], marketPrice, initService);
 
- buyAmount = buyAmount / 20; //testing
- buyAmount = buyAmount.toFixed(initService.precision);//testing
- 
-console.log(buyAmount + "BUY AMOUNT")
-    const dataset = "symbol=" + theTicker + "&side=" + side + "&type=LIMIT&quantity=" + buyAmount + "&timeInForce=" + timeInForce +"&price=" + marketPrice + "&newClientOrderId=my_order_id_1&timestamp=" + timestamp;
+ // tradeAmount = tradeAmount / 50; //testing
+ // tradeAmount = tradeAmount.toFixed(initService.precision);//testing
+
+    const dataset = "symbol=" + theTicker + "&side=" + side + "&type=LIMIT&quantity=" + tradeAmount + "&timeInForce=" + timeInForce +"&price=" + marketPrice + "&newClientOrderId=my_order_id_1&timestamp=" + timestamp;
 
     const sign = buildSign(dataset, initService.apiSecret);
 
@@ -201,7 +200,7 @@ console.log(buyAmount + "BUY AMOUNT")
       })
 
     ]);
-
+    console.log(results);
     return results;
   }
 
@@ -225,13 +224,50 @@ console.log(buyAmount + "BUY AMOUNT")
       //All binance transactions require a maximum precision level or fail
       amount = amount.toFixed(initService.precision);
       return amount;
-      // 1 btc = 100 usdt
-      // I can buy 1 / 100 btc * 50usdt
     } else if(side == process.env.SELL){
-      let amount = curAQuantity * 1000 / 999 / 1000;
+      let amount = curAQuantity * 1000 / 1001;
       amount = amount.toFixed(initService.precision);
       return amount;
     }
+  }
+
+
+
+
+  async cancelOrder(theTicker, orderNumber, axiosService, initService){
+    const timestamp = axiosService.generateTimestamp();
+
+    dataset = "symbol=" + theTicker + "&orderId=" + orderNumber + "&timestamp=" + timestamp;
+
+    const sign = buildSign(dataset, initService.apiSecret);
+
+    let endpointb = initService.apiRoot + process.env.BINANCE_ENDPOINT_ORDER;
+    let endpointSend = endpointb + "?" + dataset + '&signature=' + sign;
+
+    // console.log(datasetc);
+
+    var config = {
+      method: 'delete',
+      url: endpointSend,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-MBX-APIKEY': initService.apiKey
+      }
+    };
+
+    const results = await Promise.all([
+
+      axios(config)
+      .then(function (response) {
+        return JSON.stringify(response.data);
+      })
+      .catch(function (error) {
+        return false;
+      })
+
+    ]);
+
+    return results;
   }
 
 

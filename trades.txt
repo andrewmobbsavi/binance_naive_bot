@@ -1,1 +1,26 @@
 Thu Apr 22 2021 21:34:48 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $null
+Thu Apr 22 2021 21:46:30 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $null
+Thu Apr 22 2021 21:46:48 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $null
+Thu Apr 22 2021 21:51:16 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $null
+Thu Apr 22 2021 21:52:01 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $null
+Sat Apr 24 2021 06:51:09 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $null
+Sat Apr 24 2021 07:03:37 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $null
+Sat Apr 24 2021 07:12:29 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $null
+Sat Apr 24 2021 07:13:23 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $null
+Sat Apr 24 2021 10:15:34 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $null
+Sat Apr 24 2021 10:16:28 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $null
+Sat Apr 24 2021 10:19:25 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 10:21:11 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 10:36:29 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 10:36:26 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 10:39:42 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 10:49:55 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 10:51:48 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 10:52:35 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 10:53:57 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 10:55:42 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 10:55:45 GMT+1000 (Australian Eastern Standard Time) CREATE SELL ORDER ETH @: $909.00.
+Sat Apr 24 2021 11:09:10 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 11:11:40 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 11:14:13 GMT+1000 (Australian Eastern Standard Time) BUY ETH @: $900.00000000
+Sat Apr 24 2021 11:16:56 GMT+1000 (Australian Eastern Standard Time) CREATE SELL ORDER ETH @: $909.00.

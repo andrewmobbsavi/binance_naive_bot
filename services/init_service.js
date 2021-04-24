@@ -4,6 +4,13 @@ class init_service{
     const argsGet = process.argv;
     const appEnv = argsGet[2];
     const currency = argsGet[3];
+    const type = argsGet[4];
+    const price = argsGet[5];
+    const vol = argsGet[6];
+
+    this.price = price;
+    this.vol = vol;
+    this.type = type;
 
     this.currency = currency;
 
