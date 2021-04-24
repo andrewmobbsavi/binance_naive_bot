@@ -93,7 +93,7 @@ type – the type of order you want to submit. Possible values
   if(ordersValid){
     //If holding, don't care about the priceTracker, only care about buyTracker
     if(holding){
-console.log("Holding Entering Sell ");
+      console.log("Holding Entering Sell");
       //Create the sell order GTC based on buy price
       let amountsHeld = await marketService.getAmountsHeld(initService.main_ticker, process.env.USDT_SYMBOL, initService.apiSecret,  initService.apiKey, initService.apiRoot, axiosService,fs);
 
@@ -117,7 +117,7 @@ console.log("Holding Entering Sell ");
         buyTracker = null;
         holding = false;
 
-        priceTracker = tradePrice;
+        priceTracker = sellPrice;
 
       }
     } else {
@@ -139,7 +139,7 @@ console.log("Holding Entering Sell ");
 
       //Different criteria for profit vs loss
       //BUY
-      if((priceDiff > 0) && (priceDiffRatio >= buyPercentage)){
+      if(decrease && (priceDiffRatio >= buyPercentage)){
       // if(decrease && (priceDiffRatio >= testbuyPercentage)){ //test
 
         //Set the buy order and get the buy status
@@ -172,6 +172,7 @@ console.log("Holding Entering Sell ");
       //Set pricetracker logic
       /*
         if previous vs current market higher than 1% increase, then reset
+        we use price tracker to track previous non-action prices
       */
       if(!decrease && (priceDiffRatio > buyPercentage)){
         priceTracker = marketPrice;
